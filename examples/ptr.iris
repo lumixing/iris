@@ -1,0 +1,24 @@
+extern $printf variadic
+
+ptr $str = { u8 "you are %d years old\n", u8 0 }
+
+i32 $main() {
+    i32 %age = copy 18
+    call $age_print(%age)
+    ptr %age.ptr = point %age
+    call $age_increase(%age.ptr)
+    call $age_print(%age)
+    ret 0
+}
+
+void $age_print(i32 %age) {
+    call $printf($str, %age)
+    ret
+}
+
+void $age_increase(ptr %age.ptr) {
+    i32 %age = load %age.ptr
+    %age = add %age, 1
+    store %age.ptr, %age
+    ret
+}

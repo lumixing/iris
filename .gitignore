@@ -1,0 +1,7 @@
+*
+!.gitignore
+!iris
+!nasm
+!*.odin
+!examples
+!*.iris

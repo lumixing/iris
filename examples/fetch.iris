@@ -1,0 +1,35 @@
+syscall 0x00 $read
+syscall 0x01 $write
+syscall 0x03 $close
+syscall 0x29 $socket
+syscall 0x2A $connect
+
+extern $gethostbyname
+extern $htons
+
+const #AF_INET 2
+const #SOCK_STEAM 1
+const #PORT 80
+const #BUF_SIZE 1024
+const #STDOUT 1
+
+data $.host = { u8 "api.ipify.org", u8 0 }
+data $.req = { u8 "GET / HTTP/1.1", u8 13, u8 10, u8 "Host: api.ipify.org", u8 13, u8 10, u8 13, u8 10 }
+
+struct @sockaddr_in { 1 u16, 1 u16, 1 u32 }
+
+func i32 $main() {
+    i32 %fd = call $socket(i32 #AF_INET, i32 #SOCK_STEAM, i32 0)
+    ptr %host.ptr = call $gethostbyname(ptr $.host)
+    ptr %addr.ptr = alloc @sockaddr_in
+    storefield %addr.ptr, 0, u16 #AF_INET
+    storefield %addr.ptr, 1, u16 20480
+    storefield %addr.ptr, 2, u32 3440188008
+    call $connect(i32 %fd, ptr %addr.ptr, i32 @sockaddr_in)
+    call $write(i32 %fd, ptr $.req, i32 !$.req)
+    ptr %buf = alloc #BUF_SIZE
+    i32 %bytes_read = call $read(i32 %fd, ptr %buf, i32 #BUF_SIZE)
+    call $write(i32 #STDOUT, ptr %buf, i32 %bytes_read)
+    call $close(i32 %fd)
+    ret 0
+}

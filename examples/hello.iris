@@ -1,0 +1,8 @@
+extern $puts
+
+data $.str = { u8 "hello world", u8 0 }
+
+func i32 $main() {
+    call $puts(ptr $.str)
+    ret i32 0
+}
