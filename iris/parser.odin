@@ -1,13 +1,14 @@
 package iris
 
-import "core:c"
+import "core:fmt"
+
 Parser :: struct {
 	tokens: []Token,
 	top_stmts: [dynamic]TopStmt,
 	span: Span,
 }
 
-prs_parse :: proc(prs: ^Parser, tokens: []Token) {
+prs_parse :: proc(prs: ^Parser, tokens: []Token) -> (err: Maybe(Error)) {
 	prs.tokens = tokens
 
 	for !prs_end(prs) {
@@ -18,137 +19,155 @@ prs_parse :: proc(prs: ^Parser, tokens: []Token) {
 		case .Newline:
 			prs_eat(prs) // ignore newline
 		case .KW_extern:
-			prs_extern(prs)
+			top_stmt := prs_extern(prs) or_return
+			append(&prs.top_stmts, top_stmt)
 		case .KW_data:
-			prs_data(prs)
+			top_stmt := prs_data(prs) or_return
+			append(&prs.top_stmts, top_stmt)
 		case .KW_func:
-			prs_func(prs)
+			top_stmt := prs_func(prs) or_return
+			append(&prs.top_stmts, top_stmt)
 		case:
 			panicf("invalid token: %v\n", token)
 		}
 	}
+
+	return
 }
 
-prs_extern :: proc(prs: ^Parser) {
-	prs_expect(prs, .KW_extern)
-	name := prs_expect(prs, .Global).(string)
-	prs_expect(prs, .Newline)
+prs_extern :: proc(prs: ^Parser) -> (extern: Extern, err: Maybe(Error)) {
+	_ = prs_expect(prs, .KW_extern) or_return
+	name := prs_expect(prs, .Global) or_return
+	_ = prs_expect(prs, .Newline) or_return
 
-	append(&prs.top_stmts, Extern {
-		name = name,
-	})
+	// append(&prs.top_stmts, Extern {
+	// 	name = name,
+	// })
+
+	extern = {
+		name = name.(string),
+	}
+	return
 }
 
-prs_data :: proc(prs: ^Parser) {
-	prs_expect(prs, .KW_data)
-	name := prs_expect(prs, .Global).(string)
-	prs_expect(prs, .Equals)
+prs_data :: proc(prs: ^Parser) -> (data: Data, err: Maybe(Error)) {
+	_ = prs_expect(prs, .KW_data) or_return
+	name := prs_expect(prs, .Global) or_return
+	_ = prs_expect(prs, .Equals) or_return
 
 	args: [dynamic]ConstExpr
 
-	prs_expect(prs, .LBrace)
+	_ = prs_expect(prs, .LBrace) or_return
 
-	const_expr := prs_const_expr(prs)
+	const_expr := prs_const_expr(prs) or_return
 	append(&args, const_expr)
 
 	for prs_peek(prs).type != .RBrace {
-		prs_expect(prs, .Comma)
-		const_expr := prs_const_expr(prs)
+		_ = prs_expect(prs, .Comma) or_return
+		const_expr := prs_const_expr(prs) or_return
 		append(&args, const_expr)
 	}
 
-	prs_expect(prs, .RBrace)
-	prs_expect(prs, .Newline)
+	_ = prs_expect(prs, .RBrace) or_return
+	_ = prs_expect(prs, .Newline) or_return
 
-	append(&prs.top_stmts, Data {
-		name = name,
+	data = {
+		name = name.(string),
 		args = args[:],
-	})
+	}
+	return
 }
 
-prs_func :: proc(prs: ^Parser) {
-	prs_expect(prs, .KW_func)
-	ret_type := prs_expect(prs, .Type).(Type)
-	name := prs_expect(prs, .Global).(string)
+prs_func :: proc(prs: ^Parser) -> (func: Func, err: Maybe(Error)) {
+	_ = prs_expect(prs, .KW_func) or_return
+	ret_type := prs_expect(prs, .Type) or_return
+	name := prs_expect(prs, .Global) or_return
 
-	prs_expect(prs, .LParen)
-	prs_expect(prs, .RParen)
+	_ = prs_expect(prs, .LParen) or_return
+	_ = prs_expect(prs, .RParen) or_return
 
 	stmts: [dynamic]Stmt
 
-	prs_expect(prs, .LBrace)
-	prs_expect(prs, .Newline)
+	_ = prs_expect(prs, .LBrace) or_return
+	_ = prs_expect(prs, .Newline) or_return
 
 	for prs_peek(prs).type != .RBrace {
 		token := prs_peek(prs)
+		// todo: do i need a partial here? just prs_expect (soft?)
 		#partial switch token.type {
 		case .Instruction:
 			// todo: remove partial
 			#partial switch token.value.(Instruction) {
 			case .call:
-				append(&stmts, prs_call(prs))
+				call := prs_call(prs) or_return
+				append(&stmts, call)
 			case .ret:
-				append(&stmts, prs_ret(prs))
+				ret := prs_ret(prs) or_return
+				append(&stmts, ret)
 			case:
 				panicf("unimplemented instr: %v\n", token)
 			}
 		case:
 			panicf("expected instruction but got %v\n", token)
 		}
-		prs_expect(prs, .Newline)
+		_ = prs_expect(prs, .Newline) or_return
 	}
 
-	prs_expect(prs, .RBrace)
-	prs_expect(prs, .Newline)
+	_ = prs_expect(prs, .RBrace) or_return
+	_ = prs_expect(prs, .Newline) or_return
 
-	append(&prs.top_stmts, Func {
-		ret_type = ret_type,
-		name = name,
+	func = {
+		ret_type = ret_type.(Type),
+		name = name.(string),
 		// params = {},
 		body = stmts[:],
-	})
+	}
+	return
 }
 
-prs_call :: proc(prs: ^Parser) -> Call {
+prs_call :: proc(prs: ^Parser) -> (call: Call, err: Maybe(Error)) {
 	prs_expect_instr(prs, .call)
-	name := prs_expect(prs, .Global).(string)
+	name := prs_expect(prs, .Global) or_return
 
 	args: [dynamic]Expr
 
-	prs_expect(prs, .LParen)
+	_ = prs_expect(prs, .LParen) or_return
 
 	// todo: optional args
-	arg := prs_expr(prs)
+	arg := prs_expr(prs) or_return
 	append(&args, arg)
 
 	// todo: more args
 
-	prs_expect(prs, .RParen)
+	_ = prs_expect(prs, .RParen) or_return
 
-	return {
-		name = name,
+	call = {
+		name = name.(string),
 		args = args[:],
 	}
+	return
 }
 
-prs_ret :: proc(prs: ^Parser) -> Ret {
+prs_ret :: proc(prs: ^Parser) -> (ret: Ret, err: Maybe(Error)) {
 	prs_expect_instr(prs, .ret)
 	// todo: optional value
-	value := prs_expr(prs)
+	value := prs_expr(prs) or_return
 
-	return {
+	ret = {
 		value = value,
 	}
+	return
 }
 
-prs_expr :: proc(prs: ^Parser) -> Expr {
-	type := prs_expect(prs, .Type).(Type)
+prs_expr :: proc(prs: ^Parser) -> (expr: Expr, err: Maybe(Error)) {
+	type := prs_expect(prs, .Type) or_return
 	value := prs_value(prs)
 
-	return {
-		type = type,
+	expr = {
+		type = type.(Type),
 		value = value,
 	}
+	return
 }
 
 prs_value :: proc(prs: ^Parser) -> Value {
@@ -166,40 +185,62 @@ prs_value :: proc(prs: ^Parser) -> Value {
 	panicf("expected Global, Local or Int but got %v\n", token)
 }
 
-prs_expect_instr :: proc(prs: ^Parser, exp_instr: Instruction) {
-	instr := prs_expect(prs, .Instruction).(Instruction)
-	assert(instr == exp_instr)
+prs_expect_instr :: proc(prs: ^Parser, expected_instr: Instruction) -> (err: Maybe(Error)) {
+	instr := prs_expect(prs, .Instruction) or_return
+
+	if instr.(Instruction) != expected_instr {
+		err = prs_error(prs, "Expected instruction %v but got %v", expected_instr, instr)
+	}
+
+	return
 }
 
-prs_const_expr :: proc(prs: ^Parser) -> ConstExpr {
-	type := prs_expect(prs, .Type).(Type)
-	value := prs_const_value(prs)
+prs_const_expr :: proc(prs: ^Parser) -> (const_expr: ConstExpr, err: Maybe(Error)) {
+	type := prs_expect(prs, .Type) or_return
+	value := prs_const_value(prs) or_return
 
-	return {
-		type = type,
+	const_expr = {
+		type = type.(Type),
 		value = value,
 	}
+	return
 }
 
-prs_const_value :: proc(prs: ^Parser) -> ConstValue {
+prs_const_value :: proc(prs: ^Parser) -> (const_value: ConstValue, err: Maybe(Error)) {
 	token := prs_eat(prs)
 	#partial switch token.type {
 	case .String:
-		return token.value.(string)
+		const_value = token.value.(string)
 	case .Int:
-		return token.value.(int)
+		const_value = token.value.(int)
+	case:
+		err = prs_error(prs, "Expected ConstValue (String or Int) but got %v", token.type)
 	}
 
-	panicf("expected String or Int but got %v\n", token)
+	return
 }
 
-prs_expect :: proc(prs: ^Parser, type: TokenType, loc := #caller_location) -> TokenValue {
-	assert(!prs_end(prs), loc = loc)
-	token := prs_eat(prs)
-	if token.type == type {
-		return token.value
+prs_error :: proc(prs: ^Parser, fmtstr: string, args: ..any) -> Error {
+	return {
+		span = prs.tokens[prs.span.lo].span,
+		text = fmt.aprintf(fmtstr, ..args)
 	}
-	panicf("expected %v but got %v\n", type, token.type, loc = loc)
+}
+
+// requiring results makes it so i dont forget or_return
+// at the cost of sometimes using _ =
+@(require_results)
+prs_expect :: proc(prs: ^Parser, type: TokenType) -> (value: TokenValue, err: Maybe(Error)) {
+	assert(!prs_end(prs))
+	token := prs_eat(prs)
+
+	if token.type == type {
+		value = token.value
+		return
+	}
+
+	err = prs_error(prs, "Expected %v but got %v", type, token.type)
+	return
 }
 
 prs_eat :: proc(prs: ^Parser, loc := #caller_location) -> Token {

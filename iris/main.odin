@@ -8,13 +8,17 @@ panicf :: fmt.panicf
 assertf :: fmt.assertf
 
 main :: proc() {
-	file := #load("../hello.iris")
+	file := #load("../examples/hello.iris")
 
 	lexer: Lexer
 	lexer_scan(&lexer, file)
 
 	parser: Parser
-	prs_parse(&parser, lexer.tokens[:])
+	parse_err := prs_parse(&parser, lexer.tokens[:])
+	if parse_err != nil {
+		fmt.println("parse error", parse_err)
+		return
+	}
 	fmt.printfln("%#v", parser.top_stmts)
 
 	code := codegen(parser.top_stmts[:])
