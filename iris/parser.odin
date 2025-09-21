@@ -227,6 +227,13 @@ prs_error :: proc(prs: ^Parser, fmtstr: string, args: ..any) -> Error {
 	}
 }
 
+error :: proc(span: Span, fmtstr: string, args: ..any) -> Error {
+	return {
+		span = span,
+		text = fmt.aprintf(fmtstr, ..args)
+	}
+}
+
 // requiring results makes it so i dont forget or_return
 // at the cost of sometimes using _ =
 @(require_results)
@@ -239,7 +246,7 @@ prs_expect :: proc(prs: ^Parser, type: TokenType) -> (value: TokenValue, err: Ma
 		return
 	}
 
-	err = prs_error(prs, "Expected %v but got %v", type, token.type)
+	err = error(token.span, "Expected %v but got %v", type, token.type)
 	return
 }
 

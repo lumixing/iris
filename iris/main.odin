@@ -7,16 +7,19 @@ log :: fmt.println
 panicf :: fmt.panicf
 assertf :: fmt.assertf
 
+PATH :: "examples/hello.iris"
+
 main :: proc() {
-	file := #load("../examples/hello.iris")
+	file := #load("../" + PATH)
 
 	lexer: Lexer
 	lexer_scan(&lexer, file)
 
 	parser: Parser
 	parse_err := prs_parse(&parser, lexer.tokens[:])
-	if parse_err != nil {
-		fmt.println("parse error", parse_err)
+	if err, ok := parse_err.?; ok {
+		line, col := span_to_line_col(file, err.span)
+		fmt.printfln("Error at %s:%d:%d: %s", PATH, line, col, err.text)
 		return
 	}
 	fmt.printfln("%#v", parser.top_stmts)

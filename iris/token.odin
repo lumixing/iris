@@ -49,7 +49,3 @@ Instruction :: enum {
 	store,
 	add,
 }
-
-Span :: struct {
-	lo, hi: uint,
-}
