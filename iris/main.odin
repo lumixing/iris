@@ -22,10 +22,17 @@ main :: proc() {
 		fmt.printfln("Error at %s:%d:%d: %s", PATH, line, col, err.text)
 		return
 	}
-	fmt.printfln("%#v", parser.top_stmts)
+	// fmt.printfln("%#v", parser.top_stmts)
+
+	check_err := check(parser.top_stmts[:])
+	if err, ok := check_err.?; ok {
+		line, col := span_to_line_col(file, err.span)
+		fmt.printfln("Error at %s:%d:%d: %s", PATH, line, col, err.text)
+		return
+	}
 
 	code := codegen(parser.top_stmts[:])
 	log(code)
 
-	os.write_entire_file("codegen.asm", transmute([]u8)code)
+	// os.write_entire_file("codegen.asm", transmute([]u8)code)
 }

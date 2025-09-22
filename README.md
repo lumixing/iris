@@ -20,6 +20,8 @@ func i32 $add(i32 %a, i32 %b) {
 }
 ```
 
+runes: `$global` `%local` `@label` `#const(?)` `&struct`
+
 <!-- ```iris
 extern $printf variadic
 

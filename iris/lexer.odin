@@ -26,6 +26,11 @@ lexer_scan :: proc(lexer: ^Lexer, input: []u8) {
 		switch char {
 		case ' ', '\t', '\r': // ignore whitespace
 		case '\n': lexer_add_token(lexer, .Newline)
+		case ';':
+			for lexer_peek(lexer) != '\n' {
+				lexer_eat(lexer)
+			}
+			lexer_eat(lexer)
 		case '=':  lexer_add_token(lexer, .Equals)
 		case ',':  lexer_add_token(lexer, .Comma)
 		case '{':  lexer_add_token(lexer, .LBrace)

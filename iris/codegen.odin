@@ -69,12 +69,15 @@ codegen_stmt :: proc(lines: ^[dynamic]string, stmt: Stmt) {
 		}
 		nasm.call(lines, s.name)
 	case Ret:
-		// todo: remove partial
-		#partial switch value in s.value.?.value {
-		case ConstValue:
-			#partial switch v in value {
-			case int:
-				nasm.mov_reg_int(lines, .rax, v)
+		if value, ok := s.value.?; ok {
+			#partial switch value in s.value.?.value {
+			case ConstValue:
+				#partial switch v in value {
+				case int:
+					nasm.mov_reg_int(lines, .rax, v)
+				case: unimplemented()
+				}
+			case: unimplemented()
 			}
 		}
 		nasm.ret(lines)

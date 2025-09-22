@@ -128,12 +128,17 @@ prs_call :: proc(prs: ^Parser) -> (call: Call, err: Maybe(Error)) {
 	args: [dynamic]Expr
 
 	prs_expect(prs, .LParen) or_return
+	
+	if prs_peek(prs).type != .RParen {
+		arg := prs_expr(prs) or_return
+		append(&args, arg)
 
-	// todo: optional args
-	arg := prs_expr(prs) or_return
-	append(&args, arg)
-
-	// todo: more args
+		for prs_peek(prs).type != .RParen {
+			prs_expect(prs, .Comma) or_return
+			arg := prs_expr(prs) or_return
+			append(&args, arg)
+		}
+	}
 
 	prs_expect(prs, .RParen) or_return
 
@@ -146,8 +151,11 @@ prs_call :: proc(prs: ^Parser) -> (call: Call, err: Maybe(Error)) {
 
 prs_ret :: proc(prs: ^Parser) -> (ret: Ret, err: Maybe(Error)) {
 	prs_expect_instr(prs, .ret)
-	// todo: optional value
-	value := prs_expr(prs) or_return
+
+	value: Maybe(Expr)
+	if prs_peek(prs).type != .Newline {
+		value = prs_expr(prs) or_return
+	}
 
 	ret = {
 		value = value,
@@ -157,7 +165,7 @@ prs_ret :: proc(prs: ^Parser) -> (ret: Ret, err: Maybe(Error)) {
 
 prs_expr :: proc(prs: ^Parser) -> (expr: Expr, err: Maybe(Error)) {
 	type := prs_expect_value(prs, .Type, Type) or_return
-	value := prs_value(prs)
+	value := prs_value(prs) or_return
 
 	expr = {
 		type = type,
@@ -166,19 +174,21 @@ prs_expr :: proc(prs: ^Parser) -> (expr: Expr, err: Maybe(Error)) {
 	return
 }
 
-prs_value :: proc(prs: ^Parser) -> Value {
+prs_value :: proc(prs: ^Parser) -> (value: Value, err: Maybe(Error)) {
 	token := prs_eat(prs)
 	#partial switch token.type {
 	case .Global:
-		return Global(token.value.(string))
+		value = Global(token.value.(string))
 	case .Local:
-		return Local(token.value.(string))
+		value = Local(token.value.(string))
 	// todo: clean this up!!
 	case .Int:
-		return ConstValue(token.value.(int))
+		value = ConstValue(token.value.(int))
+	case:
+		err = error(token.span, "Expected Value (Global, Local or Int) but got %v", token.type)
 	}
 
-	panicf("expected Global, Local or Int but got %v\n", token)
+	return
 }
 
 prs_expect_instr :: proc(prs: ^Parser, expected_instr: Instruction) -> (err: Maybe(Error)) {
