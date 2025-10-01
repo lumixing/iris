@@ -4,11 +4,14 @@ Info :: struct {
 	externs: map[string]Extern,
 	datas: map[string]Data,
 	funcs: map[string]Func,
+	func_info: map[string]FuncInfo,
 }
 
-check :: proc(top_stmts: []TopStmt) -> (err: Maybe(Error)) {
-	info: Info
+FuncInfo :: struct {
+	locals: map[string]LocalDef,
+}
 
+check :: proc(top_stmts: []TopStmt) -> (info: Info, err: Maybe(Error)) {
 	// first pass: declarations
 	for top_stmt in top_stmts {
 		switch tstmt in top_stmt {
@@ -21,6 +24,7 @@ check :: proc(top_stmts: []TopStmt) -> (err: Maybe(Error)) {
 		case Func:
 			check_global_name_duplicate(&info, tstmt.name) or_return
 			info.funcs[tstmt.name] = tstmt
+			info.func_info[tstmt.name] = {}
 		}
 	}
 
@@ -37,26 +41,32 @@ check :: proc(top_stmts: []TopStmt) -> (err: Maybe(Error)) {
 				return
 			}
 
+			// this is a fucking mess lol
 			// ensure last stmt is ret
 			last_stmt := tstmt.body[len(tstmt.body) - 1]
-			if ret, ok := last_stmt.(Ret); ok {
-				// ensure ret type is matching
-				if ret_value, ok := ret.value.?; ok {
-					if tstmt.ret_type != ret_value.type {
-						err = error(
-							{}, "Function %q expected to return %v but returned %v",
-							tstmt.name, tstmt.ret_type, ret_value.type
-						)
-						return
+			if instr, ok := last_stmt.(Instr); ok {
+				if ret, ok := instr.(Ret); ok {
+					// ensure ret type is matching
+					if ret_value, ok := ret.value.?; ok {
+						if tstmt.ret_type != ret_value.type {
+							err = error(
+								{}, "Function %q expected to return %v but returned %v",
+								tstmt.name, tstmt.ret_type, ret_value.type
+							)
+							return
+						}
+					} else {
+						if tstmt.ret_type != .void {
+							err = error(
+								{}, "Function %q expected to return %v but returned nothing",
+								tstmt.name, tstmt.ret_type
+							)
+							return
+						}
 					}
 				} else {
-					if tstmt.ret_type != .void {
-						err = error(
-							{}, "Function %q expected to return %v but returned nothing",
-							tstmt.name, tstmt.ret_type
-						)
-						return
-					}
+					err = error({}, "Function %q does not end with ret", tstmt.name)
+					return
 				}
 			} else {
 				err = error({}, "Function %q does not end with ret", tstmt.name)
@@ -65,21 +75,28 @@ check :: proc(top_stmts: []TopStmt) -> (err: Maybe(Error)) {
 
 			for stmt in tstmt.body {
 				#partial switch s in stmt {
-				case Call:
-					name_found := false
-
-					if s.name in info.externs {
-						name_found = true
+				case Instr:
+					#partial switch i in s {
+					case Call:
+						name_found := false
+	
+						if i.name in info.externs {
+							name_found = true
+						}
+	
+						if i.name in info.funcs {
+							name_found = true
+						}
+	
+						if !name_found {
+							err = error({}, "Global %q is not defined", i.name)
+							return
+						}
 					}
-
-					if s.name in info.funcs {
-						name_found = true
-					}
-
-					if !name_found {
-						err = error({}, "Global %q is not defined", s.name)
-						return
-					}
+				case LocalDef:
+					func_info := &info.func_info[tstmt.name]
+					locals := &func_info.locals
+					locals[s.name] = s
 				// case: unimplemented()
 				}
 			}

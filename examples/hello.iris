@@ -3,6 +3,7 @@ extern $puts
 data $.str = { u8 "hello world", u8 0 }
 
 func i32 $main() {
+    i32 %age = copy i32 18
     call $puts(ptr $.str)
     ret i32 69
 }

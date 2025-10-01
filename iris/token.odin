@@ -40,6 +40,14 @@ Type :: enum {
 	void,
 }
 
+@(rodata)
+type_size: [Type]uint = {
+	.void = 0,
+	.u8   = 1,
+	.i32  = 4,
+	.ptr  = 8,
+}
+
 Instruction :: enum {
 	copy,
 	call,

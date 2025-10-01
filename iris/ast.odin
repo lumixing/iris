@@ -34,7 +34,7 @@ Expr :: struct {
 Value :: union #no_nil {
 	Global,
 	Local,
-	ConstValue,
+	ConstValue, // change this to int bc string doesnt make sense?
 }
 
 Global :: distinct string
@@ -53,8 +53,14 @@ Param :: struct {
 }
 
 Stmt :: union #no_nil {
+	Instr,
+	LocalDef,
+}
+
+Instr :: union #no_nil {
 	Call,
 	Ret,
+	Copy,
 }
 
 Call :: struct {
@@ -64,4 +70,14 @@ Call :: struct {
 
 Ret :: struct {
 	value: Maybe(Expr),
+}
+
+Copy :: struct {
+	value: Expr,
+}
+
+LocalDef :: struct {
+	type: Type,
+	name: string,
+	value: Instr,
 }

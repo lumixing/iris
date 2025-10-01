@@ -96,13 +96,16 @@ prs_func :: proc(prs: ^Parser) -> (func: Func, err: Maybe(Error)) {
 			#partial switch token.value.(Instruction) {
 			case .call:
 				call := prs_call(prs) or_return
-				append(&stmts, call)
+				append(&stmts, Instr(call))
 			case .ret:
 				ret := prs_ret(prs) or_return
-				append(&stmts, ret)
+				append(&stmts, Instr(ret))
 			case:
 				panicf("unimplemented instr: %v\n", token)
 			}
+		case .Type:
+			local_def := prs_local_def(prs) or_return
+			append(&stmts, local_def)
 		case:
 			panicf("expected instruction but got %v\n", token)
 		}
@@ -121,8 +124,56 @@ prs_func :: proc(prs: ^Parser) -> (func: Func, err: Maybe(Error)) {
 	return
 }
 
+// does NOT expect newline
+prs_instr :: proc(prs: ^Parser) -> (instr: Instr, err: Maybe(Error)) {
+	token := prs_peek(prs)
+
+	#partial switch token.type {
+	case .Instruction:
+		// todo: remove partial
+		#partial switch token.value.(Instruction) {
+		case .call:
+			instr = prs_call(prs) or_return
+		case .ret:
+			instr = prs_ret(prs) or_return
+		case .copy:
+			instr = prs_copy(prs) or_return
+		case:
+			panicf("unimplemented instr: %v\n", token)
+		}
+	case:
+		panicf("expected instruction but got %v\n", token)
+	}
+
+	return
+}
+
+prs_copy :: proc(prs: ^Parser) -> (copy: Copy, err: Maybe(Error)) {
+	prs_expect_instr(prs, .copy) or_return
+	value := prs_expr(prs) or_return
+
+	copy = {
+		value = value,
+	}
+	return
+}
+
+prs_local_def :: proc(prs: ^Parser) -> (local_def: LocalDef, err: Maybe(Error)) {
+	type := prs_expect_value(prs, .Type, Type) or_return
+	name := prs_expect_value(prs, .Local, string) or_return
+	prs_expect(prs, .Equals) or_return
+	instr := prs_instr(prs) or_return
+
+	local_def = {
+		type = type,
+		name = name,
+		value = instr,
+	}
+	return
+}
+
 prs_call :: proc(prs: ^Parser) -> (call: Call, err: Maybe(Error)) {
-	prs_expect_instr(prs, .call)
+	prs_expect_instr(prs, .call) or_return
 	name := prs_expect_value(prs, .Global, string) or_return
 
 	args: [dynamic]Expr
@@ -150,7 +201,7 @@ prs_call :: proc(prs: ^Parser) -> (call: Call, err: Maybe(Error)) {
 }
 
 prs_ret :: proc(prs: ^Parser) -> (ret: Ret, err: Maybe(Error)) {
-	prs_expect_instr(prs, .ret)
+	prs_expect_instr(prs, .ret) or_return
 
 	value: Maybe(Expr)
 	if prs_peek(prs).type != .Newline {
@@ -191,6 +242,7 @@ prs_value :: proc(prs: ^Parser) -> (value: Value, err: Maybe(Error)) {
 	return
 }
 
+@(require_results)
 prs_expect_instr :: proc(prs: ^Parser, expected_instr: Instruction) -> (err: Maybe(Error)) {
 	instr := prs_expect_value(prs, .Instruction, Instruction) or_return
 

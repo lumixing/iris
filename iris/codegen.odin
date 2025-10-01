@@ -3,7 +3,7 @@ package iris
 import "core:strings"
 import "../nasm"
 
-codegen :: proc(top_stmts: []TopStmt) -> string {
+codegen :: proc(top_stmts: []TopStmt, info: Info) -> string {
 	lines: [dynamic]string
 
 	nasm.global(&lines, "main")
@@ -43,9 +43,18 @@ codegen :: proc(top_stmts: []TopStmt) -> string {
 	for top_stmt in top_stmts {
 		#partial switch tstmt in top_stmt {
 		case Func:
+			rsp_size: uint = 0
+			for name, local_def in info.func_info[tstmt.name].locals {
+				rsp_size += type_size[local_def.type]
+			}
+			nasm.sub_reg_int(&lines, .rsp, int(rsp_size))
+
 			nasm.label(&lines, tstmt.name)
 			for stmt in tstmt.body {
-				codegen_stmt(&lines, stmt)
+				#partial switch s in stmt {
+				case Instr:
+					codegen_instr(&lines, s)
+				}
 			}
 			nasm.newline(&lines)
 		}
@@ -56,8 +65,8 @@ codegen :: proc(top_stmts: []TopStmt) -> string {
 	return lines_str
 }
 
-codegen_stmt :: proc(lines: ^[dynamic]string, stmt: Stmt) {
-	switch s in stmt {
+codegen_instr :: proc(lines: ^[dynamic]string, instr: Instr) {
+	switch s in instr {
 	case Call:
 		assert(len(s.args) <= 6)
 		for arg, arg_idx in s.args {
@@ -81,6 +90,15 @@ codegen_stmt :: proc(lines: ^[dynamic]string, stmt: Stmt) {
 			}
 		}
 		nasm.ret(lines)
+	case Copy:
+		#partial switch value in s.value.value {
+		case ConstValue:
+			#partial switch v in value {
+			// case int:
+			case: unimplemented()
+			}
+		case: unimplemented()
+		}
 	}
 }
 

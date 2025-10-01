@@ -36,6 +36,11 @@ main :: proc() {
 	syscall(&lines)
 	newline(&lines)
 
+	sub_reg_int(&lines, .rsp, 16)
+	mov_base_reg_dis_int(&lines, .rsp, 8, 18)
+	add_reg_int(&lines, .rsp, 16)
+	newline(&lines)
+
 	mov(&lines, .rax, 0)
 	ret(&lines)
 
@@ -96,6 +101,18 @@ mov_reg_int :: proc(lines: ^[dynamic]string, reg: Register, value: int) {
 	append(lines, ff("\tmov %s, %d", reg, value))
 }
 
+mov_base_reg_dis_int :: proc(lines: ^[dynamic]string, reg: Register, dis: int, value: int) {
+	append(lines, ff("\tmov [%s%+d], %d", reg, dis, value))
+}
+
+sub_reg_int :: proc(lines: ^[dynamic]string, reg: Register, value: int) {
+	append(lines, ff("\tsub %s, %d", reg, value))
+}
+
+add_reg_int :: proc(lines: ^[dynamic]string, reg: Register, value: int) {
+	append(lines, ff("\tadd %s, %d", reg, value))
+}
+
 ConstExpr :: union #no_nil {
 	string,
 	int,
@@ -128,4 +145,5 @@ Register :: enum {
 	rcx,
 	r8,
 	r9,
+	rsp,
 }
