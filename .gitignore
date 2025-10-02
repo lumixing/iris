@@ -5,4 +5,5 @@
 !nasm
 !*.odin
 !examples
+!examples/*.c
 !*.iris
